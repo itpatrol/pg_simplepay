@@ -1,0 +1,50 @@
+<?php
+// $Id: pg_simplepay.install,v 1.1 2009/11/25 20:24:49 gor Exp $
+
+/**
+ * Implementation of hook_install().
+ */
+
+function pg_simplepay_install() {
+  drupal_install_schema('pg_simplepay');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+
+function pg_simplepay_uninstall() {
+  drupal_uninstall_schema('pg_simplepay');
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+
+function pg_simplepay_schema() {
+  $schema['pg_simplepay_price'] = array(
+    'description' => t('Simplepay node price information.'),
+    'fields' => array(
+      'nid'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'vid'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'price'  => array('type' => 'numeric', 'size' => 'normal', 'precision' => 12, 'scale' => 2, 'default' => 0),
+      'free'   => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+    ),
+    'indexes' => array(
+      'nid' => array('nid'),
+      ),
+    'primary key' => array('vid'),
+  );
+  $schema['pg_simplepay_payment'] = array(
+    'description' => t('Simplepay node price information.'),
+    'fields' => array(
+      'nid'     => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'uid'     => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'session' => array('type' => 'varchar', 'length' => 32, 'not null' => TRUE, 'default' => ''),
+      'txnid'   => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'created' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+    ),
+    'primary key' => array('nid'),
+  );
+  return $schema;
+}

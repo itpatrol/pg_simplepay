@@ -1,0 +1,372 @@
+<?php
+// $Id: pg_simplepay.module,v 1.1 2009/11/25 20:24:49 gor Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_init().
+ */
+
+function pg_simplepay_init() {
+  drupal_add_css(drupal_get_path('module', 'pg_simplepay') .'/pg_simplepay.css');
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+
+function pg_simplepay_perm() {
+  return array('administer pgapi', 'free access','buy access');
+}
+
+
+/**
+ * Implementation of hook_link().
+ */
+
+function pg_simplepay_link($type, $object, $teaser = FALSE) {
+  $links = array();
+  if (!user_access('free access')&& variable_get('pg_simplepay_allowed_'. $object->type, 0) && $object->pg_simplepay_price > 0 && !pg_simplepay_is_paid($object->nid)) {
+    $links['sample_link'] = array(
+      'title' => t('Buy access'),
+      'href' => 'simplepay/'.$object->nid,
+      'attributes' => array('title' => t('Buy access')),
+    );
+  }
+
+  return $links;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+ 
+function pg_simplepay_form_alter(&$form, $form_state, $form_id) {
+  if (isset($form['type']) && $form['type']['#value'] .'_node_form' == $form_id && variable_get('pg_simplepay_allowed_'. $form['type']['#value'], 0)) {
+    $form['pg_simplepay'] = array(
+      '#type'        => 'fieldset',
+      '#title'       => t('Simple pay settings'),
+      '#collapsible' => TRUE,
+      '#collapsed'   => FALSE,
+      '#weight'        => 0,
+    );
+    $form['pg_simplepay']['pg_simplepay_price'] = array(
+      '#type'          => 'textfield',
+      '#title'         => t('Price'),
+      '#default_value' => $form['#node']->pg_simplepay_price,
+
+    );
+  }
+  if($form_id == 'node_type_form'){
+    $form['pg_simplepay'] = array(
+      '#type'        => 'fieldset',
+      '#title'       => t('Simple pay settings'),
+      '#collapsible' => TRUE,
+      '#collapsed'   => TRUE,
+    );
+    $form['pg_simplepay']['pg_simplepay_allowed'] = array(
+      '#type'          => 'checkbox',
+      '#title'         => t('Simple pay purchase allowed'),
+      '#default_value' => variable_get('pg_simplepay_allowed_'. $form['#node_type']->type, 0),
+    );
+
+  }
+} 
+
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'load':
+         $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' and vid= '%d'", $node->nid, $node->vid));
+        return array('pg_simplepay_price' => $pr->price ? $pr->price : 0);
+      break;
+    case 'update':
+         $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'", $node->nid,$node->vid));
+         if(isset($pr->nid)){
+           $pr->price=$node->pg_simplepay_price;
+           drupal_write_record('pg_simplepay_price', $pr, array('nid','vid'));
+         }else{
+             $pr->price=$node->pg_simplepay_price;
+             $pr->nid=$node->nid;
+             $pr->vid=$node->vid;
+             drupal_write_record('pg_simplepay_price', $pr);
+         };
+      break;
+    case 'insert':
+           $pr= (object)(NULL);
+           $pr->price=$node->pg_simplepay_price;
+           $pr->nid=$node->nid;
+           $pr->vid=$node->vid;
+           drupal_write_record('pg_simplepay_price', $pr);
+      break;
+    case 'delete':
+           db_query("DELETE FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'}",$node->nid,$node->vid);
+      break;
+    case 'view':
+        if (!user_access('free access') && variable_get('pg_simplepay_allowed_'. $node->type, 0) && $node->pg_simplepay_price > 0) {
+          if($a4==1){//view
+            if(!pg_simplepay_is_paid($node->nid)){
+	            $node2=node_build_content(node_load($node->nid), 'TRUE');
+	            $node->content['body']['#value']=$node2->teaser;
+	            if(!empty($node->content['files']['#value'])){
+	              $node->content['files']['#value']=t('Please buy access to see attached files');
+	            }
+            }
+          }
+        }
+      break;
+  }
+}
+
+
+/**
+ * Implementation of hook_theme()
+ */
+function pg_simplepay_theme() {
+   return array(
+    'pg_simplepay_complete' => array(
+      'arguments' => array('t' => array()),
+    ),
+    'pg_simplepay_fail' => array(
+      'arguments' => array('t' => array()),
+    ),    
+  );
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+
+function pg_simplepay_menu() {
+  $items['admin/pgdata/simplepay'] = array(
+      'title'            => 'Simple Pay Settings',
+      'description'      => 'Configure default settings for Simple Pay.',
+      'page callback'    => 'drupal_get_form',
+      'page arguments'   => array('pg_simplepay_common'),
+      'access callback'  => 'user_access',
+      'access arguments' => array('administer pgapi'),
+      'file'             => 'pg_simplepay.admin.inc',
+      'type'             => MENU_NORMAL_ITEM,
+  );
+
+  $items['simplepay/%node'] = array(
+      'title'            => 'Simple Pay',
+      'page callback'    => 'pg_simplepay_prepay',
+      'page arguments'   => array(1),
+      'access callback'  => 'user_access',
+      'access arguments' => array('buy access'),
+      'file'             => 'pg_simplepay.admin.inc',
+  );
+
+  $items['simplepay/complete/%txnid'] = array(
+      'title'           => 'Payment completed',
+      'page callback'   => 'pg_simplepay_complete',
+      'page arguments'  => array(2),
+      'access callback' => TRUE,
+      'type'            => MENU_CALLBACK,
+  );
+
+  $items['simplepay/fail/%txnid'] = array(
+      'title'           => 'Payment failed',
+      'page callback'   => 'pg_simplepay_fail',
+      'page arguments'  => array(2),
+      'access callback' => TRUE,
+      'type'            => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+
+
+/********************************************************************
+ * Pgapi Gateway Hooks
+ ********************************************************************/
+function pg_simplepay_pgapi_format_price(){
+  $format['decimals']      = variable_get('pg_simplepay_decimal_places', 2);
+  $format['dec_point']     = variable_get('pg_simplepay_decimal', '.');
+  $format['thousands_sep'] = variable_get('pg_simplepay_thousands', ',');
+  $format['position']      = variable_get('pg_simplepay_position',TRUE);
+  return $format;
+}
+
+function pg_simplepay_pgapi_transaction($op,&$t){
+  switch($op){
+    case PG_COMPLETED:
+        $simple_access['nid']     = $t->extra['nid'];
+        $simple_access['uid']     = $t->uid;
+        $simple_access['txnid']   = $t->txnid;
+        $simple_access['created'] = time();
+        if($t->uid == 0 ){
+          $simple_access['session'] = $t->extra['session'];
+        }
+        drupal_write_record('pg_simplepay_payment', $simple_access);
+        $t->workflow = pgapi_get_workflow_id('completed');
+        
+      break;
+    case PG_DENIED:
+        $t->workflow = pgapi_get_workflow_id('security violation');
+      break;
+    case PG_FAILED:
+        $t->workflow = pgapi_get_workflow_id('canceled');
+      break;
+  }
+  return $t;
+}
+
+function pg_simplepay_pgapi_callback($t){
+  switch($t->status){
+    case PG_COMPLETED:
+        return 'simplepay/complete/'.$t->txnid;
+    default:
+        return 'simplepay/fail/'.$t->txnid;
+
+      break;
+  }
+}
+
+/********************************************************************
+ * Callback functions
+ ********************************************************************/
+ 
+function pg_simplepay_prepay ($node){
+  global $user;
+  $t = (object)(NULL);
+  $t->amount=$node->pg_simplepay_price;
+  $t->type='pg_simplepay';
+  $t->uid=$user->uid;
+  $t->title=t('You have been ordered !title ', array('!title' => l($node->title, 'node/'.$node->nid.'', array('html'=>true))));
+
+  $ses=$_COOKIE[session_name()];
+
+  $t->extra=array(
+    'nid' => $node->nid,
+    'session' => $ses,
+  );
+  $t = pgapi_transaction_save($t);
+  $payment_url=  url('payment/'. $t->txnid, array('absolute' => TRUE));
+  drupal_goto($payment_url);
+  return '';
+}
+
+function pg_simplepay_fail ($t){
+  global $user;
+  if($user->uid!=1 && $user->uid != $t->uid){
+    drupal_access_denied();
+  }
+
+  return theme('pg_simplepay_fail',$t);
+}
+
+
+function pg_simplepay_complete ($t){
+  global $user;
+  if($user->uid != 1 and $user->uid != $t->uid){
+   drupal_access_denied();
+  }
+  
+  return theme('pg_simplepay_complete',$t);
+}
+
+
+/********************************************************************
+ * Internal functions
+ ********************************************************************/
+
+function pg_simplepay_is_paid($nid, $account=null){
+  global $user;
+  if (!$account){
+    $account = $user;
+  }
+  $ret = FALSE;
+  if($account->uid == 0){
+    $ses=$_COOKIE[session_name()];
+	  $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = '%d' AND session = '%s' AND uid = '%d'", $nid, $ses, $account->uid));
+	  if(!empty($pr)){
+	    $ret = TRUE;
+	  };
+
+  }else{
+	  $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = '%d' AND uid = '%d'", $nid, $account->uid));
+	  if(!empty($pr)){
+	    $ret = TRUE;
+	  };
+  }
+  return $ret;
+}
+
+/********************************************************************
+ * Functions theme
+ ********************************************************************/
+
+function theme_pg_simplepay_fail($t){
+  $header = array(
+    array( 'data' => $t->title, 'colspan' => '2'),
+  );
+
+  $rows=array();
+
+  $row=array();
+  $row[]= t('Price');
+  $row[]= t('!currency !amount', array('!amount' => $t->amount,'!currency' => variable_get('pg_simplepay_symbol','$')));
+  $rows[] = $row;
+
+  $row=array();
+  $row[]= t('Status');
+  $row[]= pgapi_get_status($t->status);
+  $rows[] = $row;
+
+  $row=array();
+  $row[]= t('By method');
+  $row[]= module_invoke($t->method, 'pgapi_gw','display name');
+  $rows[] = $row;
+
+  $row=array();
+  $row[]= t('Reason');
+  $row[]= pgapi_get_status($t->description);
+  $rows[] = $row;
+
+  $output = theme('table', $header, $rows);
+  return $output;
+}
+
+function theme_pg_simplepay_complete($t){
+  $header = array(
+    array( 'data' => $t->title, 'colspan' => '2'),
+  );
+
+  $rows=array();
+
+  $row=array();
+  $row[]= t('Price');
+  $row[]= t('!currency !amount', array('!amount' => $t->amount,'!currency' => variable_get('pg_simplepay_symbol','$')));
+  $rows[] = $row;
+
+  $row=array();
+  $row[]= t('Status');
+  $row[]= pgapi_get_status($t->status);
+  $rows[] = $row;
+
+  $row=array();
+  $row[]= t('By method');
+  $row[]= module_invoke($t->method, 'pgapi_gw','display name');
+  $rows[] = $row;
+
+  $row=array();
+  $row[]= t('Node URL');
+  $node=node_load($t->extra['nid']);
+  $row[]= l($node->title,'node/'.$node->nid);
+  $rows[] = $row;
+  
+  $output = theme('table', $header, $rows);
+  return $output;
+}
+
+
+
+
