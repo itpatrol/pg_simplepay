@@ -55,6 +55,9 @@ function pg_simplepay_enable(){
         'default' => array(
           'type' => 'number_decimal',
         ),
+        'teaser' => array(
+          'type' => 'number_decimal',
+        ),
       ),
     );
     field_create_instance($instance);
