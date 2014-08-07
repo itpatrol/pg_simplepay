@@ -1,16 +1,7 @@
-; $Id: pg_simplepay.info,v 1.1 2009/11/25 20:24:49 gor Exp $
 name = Simple pay
 description = Create simple payment peer node.
 dependencies[] = pgapi
+dependencies[] = number
+dependencies[] = list
 package = "Commerce"
-version = VERSION
-core = 6.x
-
-
-
-; Information added by drupal.org packaging script on 2009-11-25
-version = "6.x-1.2"
-core = "6.x"
-project = "pg_simplepay"
-datestamp = "1259181361"
-
+core = 7.x

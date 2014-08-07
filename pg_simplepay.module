@@ -1,20 +1,12 @@
 <?php
-// $Id: pg_simplepay.module,v 1.1 2009/11/25 20:24:49 gor Exp $
-
-/********************************************************************
- * Drupal Hooks
- ********************************************************************/
 
 /**
- * Implementation of hook_init().
+ * Implements hook_init().
  */
 
-function pg_simplepay_init() {
-  drupal_add_css(drupal_get_path('module', 'pg_simplepay') .'/pg_simplepay.css');
-}
 
 /**
- * Implementation of hook_perm().
+ * Implements hook_perm().
  */
 
 function pg_simplepay_perm() {
@@ -23,7 +15,7 @@ function pg_simplepay_perm() {
 
 
 /**
- * Implementation of hook_link().
+ * Implements hook_link().
  */
 
 function pg_simplepay_link($type, $object, $teaser = FALSE) {
@@ -40,75 +32,115 @@ function pg_simplepay_link($type, $object, $teaser = FALSE) {
 }
 
 /**
- * Implementation of hook_form_alter().
+ * Implements hook_field_formatter_info().
  */
- 
-function pg_simplepay_form_alter(&$form, $form_state, $form_id) {
-  if (isset($form['type']) && $form['type']['#value'] .'_node_form' == $form_id && variable_get('pg_simplepay_allowed_'. $form['type']['#value'], 0)) {
-    $form['pg_simplepay'] = array(
-      '#type'        => 'fieldset',
-      '#title'       => t('Simple pay settings'),
-      '#collapsible' => TRUE,
-      '#collapsed'   => FALSE,
-      '#weight'        => 0,
-    );
-    $form['pg_simplepay']['pg_simplepay_price'] = array(
-      '#type'          => 'textfield',
-      '#title'         => t('Price'),
-      '#default_value' => $form['#node']->pg_simplepay_price,
+function pg_simplepay_field_formatter_info() {
 
-    );
+  $types = field_info_field_types();
+  $res_types = array();
+  foreach($types as $type => $info){
+    $res_types[] = $type;
   }
-  if($form_id == 'node_type_form'){
-    $form['pg_simplepay'] = array(
-      '#type'        => 'fieldset',
-      '#title'       => t('Simple pay settings'),
-      '#collapsible' => TRUE,
-      '#collapsed'   => TRUE,
-    );
-    $form['pg_simplepay']['pg_simplepay_allowed'] = array(
-      '#type'          => 'checkbox',
-      '#title'         => t('Simple pay purchase allowed'),
-      '#default_value' => variable_get('pg_simplepay_allowed_'. $form['#node_type']->type, 0),
-    );
-
-  }
-} 
-
+  
+  return array(
+    'pg_simplepay_access' => array(
+      'label' => t('Payment required'),
+      'field types' => $res_types,
+      'settings' =>  array(
+        'formatter' => '',
+      ),
+    ),
+  );
+}
 
 /**
- * Implementation of hook_nodeapi().
+ * Implements hook_field_formatter_settings_form().
  */
-function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
-  switch ($op) {
-    case 'load':
-         $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' and vid= '%d'", $node->nid, $node->vid));
-        return array('pg_simplepay_price' => $pr->price ? $pr->price : 0);
-      break;
-    case 'update':
-         $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'", $node->nid,$node->vid));
-         if(isset($pr->nid)){
-           $pr->price=$node->pg_simplepay_price;
-           drupal_write_record('pg_simplepay_price', $pr, array('nid','vid'));
-         }else{
-             $pr->price=$node->pg_simplepay_price;
-             $pr->nid=$node->nid;
-             $pr->vid=$node->vid;
-             drupal_write_record('pg_simplepay_price', $pr);
-         };
-      break;
-    case 'insert':
-           $pr= (object)(NULL);
-           $pr->price=$node->pg_simplepay_price;
-           $pr->nid=$node->nid;
-           $pr->vid=$node->vid;
-           drupal_write_record('pg_simplepay_price', $pr);
-      break;
-    case 'delete':
-           db_query("DELETE FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'}",$node->nid,$node->vid);
-      break;
-    case 'view':
-        if (!user_access('free access') && variable_get('pg_simplepay_allowed_'. $node->type, 0) && $node->pg_simplepay_price > 0) {
+function pg_simplepay_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  foreach (module_implements('field_formatter_info') as $module) {
+    $formatter_types = (array) module_invoke($module, 'field_formatter_info');
+    foreach ($formatter_types as $name => $formatter_info) {
+      $options[$name.":".$module] = $formatter_info['label'];
+    }
+  }
+  
+  $element['formatter'] = array(
+    '#type' => 'select',
+    '#title' => t('Formater'),
+    '#options' => $options,
+    '#default_value' => $settings['formatter'],
+  );
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_settings_summary().
+ */
+function pg_simplepay_field_formatter_settings_summary($field, $instance, $view_mode) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  $summary = array();
+  $summary[] = t('Display like !formatter', array('!formatter' => $settings['formatter']));
+
+  return implode('<br />', $summary);
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function pg_simplepay_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+  $settings = $display['settings'];
+
+  foreach ($items as $delta => $item) {
+    list($formatter,$module) = explode(":", $settings['formatter']);
+    $function = $module."_field_formatter_view";
+    $s_items = array();
+    $s_items[0] = $item;
+    $s_display['type'] = $formatter;
+//    $data = $function($entity_type, $entity, $field, $instance, $langcode, $s_items, $s_display);
+    
+//    $element[$delta] = $data[0];
+  }
+
+  return $element;
+}
+
+/**
+ * Implements hook_node_load().
+ */
+function pg_simplepay_node_load($nodes, $types) {
+  global $user;
+  foreach($nodes as $nid => $node){
+    if($node->type == 'pg_simplepay'){
+//      $result = db_query("SELECT * FROM {pg_simplepay_price}
+//                          WHERE nid = :nid AND vid = :vid", array(':nid' => $node->nid, ':vid' => $node->vid))->fetchObject();
+
+      $nodes[$nid]->pg_simplepay['price'] = $result->price ? $result->price : 0;
+      $nodes[$nid]->pg_simplepay['free'] = $result->free ? $result->free : 0;
+    }  
+  }
+}
+
+/**
+ * Implements hook_node_view().
+ */
+function pg_simplepay_node_view($node, $view_mode = 'full') {
+  global $user;
+//  drupal_set_message('<pre>'.print_r($node,true).'</pre>');
+
+  if($node->type == 'pg_simplepay' && !user_access('free access')){
+      
+    if($view_mode == 'full'){
+      
+    } 
+    /*
+              if (!user_access('free access') && variable_get('pg_simplepay_allowed_'. $node->type, 0) && $node->pg_simplepay_price > 0) {
           if($a4==1){//view
             if(!pg_simplepay_is_paid($node->nid)){
 	            $node2=node_build_content(node_load($node->nid), 'TRUE');
@@ -119,27 +151,58 @@ function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
             }
           }
         }
+
+    */
+  } 
+}
+
+/**
+ * Implemens of hook_form_alter().
+ */
+function pg_simplepay_form_alter(&$form, &$form_state, $form_id) {
+  switch($form_id) {
+    case 'pg_simplepay_node_form':
+      //get all servers
+      
+      $form['pg_simplepay'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Simplepay settings'),
+        '#collapsible' => TRUE,
+        '#tree' => TRUE,
+        '#group' => 'additional_settings',
+      );
+      $form['pg_simplepay']['price'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Price'),
+        '#default_value' => isset($form['#node']->pg_simplepay['price']) ? $form['#node']->pg_simplepay['price'] : 0,
+      );
+      $form['pg_simplepay']['free'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Free access'),
+        '#description' => t('Check it if you want to make it free.'),
+        '#default_value' => isset($form['#node']->pg_simplepay['free']) ? $form['#node']->pg_simplepay['free'] : 0,
+      );
+      $form['pg_simplepay']['fields'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Paid fields'),
+        '#collapsible' => TRUE,
+        '#tree' => TRUE,
+        '#group' => 'additional_settings',
+      );
+        drupal_set_message('<pre>'.print_r(field_info_instances('pg_simplepay', 'pg_simplepay'),true).'</pre>');
+        //$instances = field_info_instances($entity_type, $bundle);
+      $options = array (
+        'body' => t('body')
+      );
+//      $bundle = field_extract_bundle('pg_simplepay', $bundle);
+
       break;
   }
 }
 
 
 /**
- * Implementation of hook_theme()
- */
-function pg_simplepay_theme() {
-   return array(
-    'pg_simplepay_complete' => array(
-      'arguments' => array('t' => array()),
-    ),
-    'pg_simplepay_fail' => array(
-      'arguments' => array('t' => array()),
-    ),    
-  );
-}
-
-/**
- * Implementation of hook_menu()
+ * Implements hook_menu()
  */
 
 function pg_simplepay_menu() {
@@ -163,38 +226,14 @@ function pg_simplepay_menu() {
       'file'             => 'pg_simplepay.admin.inc',
   );
 
-  $items['simplepay/complete/%txnid'] = array(
-      'title'           => 'Payment completed',
-      'page callback'   => 'pg_simplepay_complete',
-      'page arguments'  => array(2),
-      'access callback' => TRUE,
-      'type'            => MENU_CALLBACK,
-  );
-
-  $items['simplepay/fail/%txnid'] = array(
-      'title'           => 'Payment failed',
-      'page callback'   => 'pg_simplepay_fail',
-      'page arguments'  => array(2),
-      'access callback' => TRUE,
-      'type'            => MENU_CALLBACK,
-  );
-
   return $items;
 }
 
 
-
-/********************************************************************
- * Pgapi Gateway Hooks
- ********************************************************************/
-function pg_simplepay_pgapi_format_price(){
-  $format['decimals']      = variable_get('pg_simplepay_decimal_places', 2);
-  $format['dec_point']     = variable_get('pg_simplepay_decimal', '.');
-  $format['thousands_sep'] = variable_get('pg_simplepay_thousands', ',');
-  $format['position']      = variable_get('pg_simplepay_position',TRUE);
-  return $format;
-}
-
+/*
+ * Implements hook_pgapi_transaction
+ */
+ 
 function pg_simplepay_pgapi_transaction($op,&$t){
   switch($op){
     case PG_COMPLETED:
@@ -207,7 +246,6 @@ function pg_simplepay_pgapi_transaction($op,&$t){
         }
         drupal_write_record('pg_simplepay_payment', $simple_access);
         $t->workflow = pgapi_get_workflow_id('completed');
-        
       break;
     case PG_DENIED:
         $t->workflow = pgapi_get_workflow_id('security violation');
@@ -219,17 +257,6 @@ function pg_simplepay_pgapi_transaction($op,&$t){
   return $t;
 }
 
-function pg_simplepay_pgapi_callback($t){
-  switch($t->status){
-    case PG_COMPLETED:
-        return 'simplepay/complete/'.$t->txnid;
-    default:
-        return 'simplepay/fail/'.$t->txnid;
-
-      break;
-  }
-}
-
 /********************************************************************
  * Callback functions
  ********************************************************************/
@@ -237,9 +264,9 @@ function pg_simplepay_pgapi_callback($t){
 function pg_simplepay_prepay ($node){
   global $user;
   $t = (object)(NULL);
-  $t->amount=$node->pg_simplepay_price;
-  $t->type='pg_simplepay';
-  $t->uid=$user->uid;
+  $t->amount = $node->pg_simplepay_price;
+  $t->service = 'pg_simplepay';
+  $t->uid = $user->uid;
   $t->title=t('You have been ordered !title ', array('!title' => l($node->title, 'node/'.$node->nid.'', array('html'=>true))));
 
   $ses=$_COOKIE[session_name()];
@@ -254,30 +281,10 @@ function pg_simplepay_prepay ($node){
   return '';
 }
 
-function pg_simplepay_fail ($t){
-  global $user;
-  if($user->uid!=1 && $user->uid != $t->uid){
-    drupal_access_denied();
-  }
-
-  return theme('pg_simplepay_fail',$t);
-}
-
-
-function pg_simplepay_complete ($t){
-  global $user;
-  if($user->uid != 1 and $user->uid != $t->uid){
-   drupal_access_denied();
-  }
-  
-  return theme('pg_simplepay_complete',$t);
-}
-
-
-/********************************************************************
- * Internal functions
- ********************************************************************/
-
+/*
+ * Is Paid access by user
+ */
+ 
 function pg_simplepay_is_paid($nid, $account=null){
   global $user;
   if (!$account){
@@ -299,74 +306,3 @@ function pg_simplepay_is_paid($nid, $account=null){
   }
   return $ret;
 }
-
-/********************************************************************
- * Functions theme
- ********************************************************************/
-
-function theme_pg_simplepay_fail($t){
-  $header = array(
-    array( 'data' => $t->title, 'colspan' => '2'),
-  );
-
-  $rows=array();
-
-  $row=array();
-  $row[]= t('Price');
-  $row[]= t('!currency !amount', array('!amount' => $t->amount,'!currency' => variable_get('pg_simplepay_symbol','$')));
-  $rows[] = $row;
-
-  $row=array();
-  $row[]= t('Status');
-  $row[]= pgapi_get_status($t->status);
-  $rows[] = $row;
-
-  $row=array();
-  $row[]= t('By method');
-  $row[]= module_invoke($t->method, 'pgapi_gw','display name');
-  $rows[] = $row;
-
-  $row=array();
-  $row[]= t('Reason');
-  $row[]= pgapi_get_status($t->description);
-  $rows[] = $row;
-
-  $output = theme('table', $header, $rows);
-  return $output;
-}
-
-function theme_pg_simplepay_complete($t){
-  $header = array(
-    array( 'data' => $t->title, 'colspan' => '2'),
-  );
-
-  $rows=array();
-
-  $row=array();
-  $row[]= t('Price');
-  $row[]= t('!currency !amount', array('!amount' => $t->amount,'!currency' => variable_get('pg_simplepay_symbol','$')));
-  $rows[] = $row;
-
-  $row=array();
-  $row[]= t('Status');
-  $row[]= pgapi_get_status($t->status);
-  $rows[] = $row;
-
-  $row=array();
-  $row[]= t('By method');
-  $row[]= module_invoke($t->method, 'pgapi_gw','display name');
-  $rows[] = $row;
-
-  $row=array();
-  $row[]= t('Node URL');
-  $node=node_load($t->extra['nid']);
-  $row[]= l($node->title,'node/'.$node->nid);
-  $rows[] = $row;
-  
-  $output = theme('table', $header, $rows);
-  return $output;
-}
-
-
-
-

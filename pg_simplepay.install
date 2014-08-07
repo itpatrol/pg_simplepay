@@ -1,42 +1,112 @@
 <?php
-// $Id: pg_simplepay.install,v 1.1 2009/11/25 20:24:49 gor Exp $
-
 /**
- * Implementation of hook_install().
+ * Implements hook_install.
  */
-
 function pg_simplepay_install() {
-  drupal_install_schema('pg_simplepay');
+
+  // Create a newsletter type if needed.
+  $type = node_type_get_type('pg_simplepay');
+  if (!$type) {
+    $type = node_type_set_defaults(array(
+      'type' => 'pg_simplepay',
+      'name' => t('Simplepay node'),
+      'base' => 'node_content',
+      'description' => t('Create a node with paid access.'),
+      'locked' => 0,
+      'custom' => 1,
+      'modified' => 1,
+      ));
+    node_type_save($type);
+    node_add_body_field($type);
+  }
 }
 
 /**
- * Implementation of hook_uninstall().
+ * Implements hook_enable().
  */
-
-function pg_simplepay_uninstall() {
-  drupal_uninstall_schema('pg_simplepay');
-}
-
-/**
- * Implementation of hook_schema().
- */
-
-function pg_simplepay_schema() {
-  $schema['pg_simplepay_price'] = array(
-    'description' => t('Simplepay node price information.'),
-    'fields' => array(
-      'nid'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-      'vid'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-      'price'  => array('type' => 'numeric', 'size' => 'normal', 'precision' => 12, 'scale' => 2, 'default' => 0),
-      'free'   => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
-    ),
-    'indexes' => array(
-      'nid' => array('nid'),
+function pg_simplepay_enable(){   
+  if (!field_read_field('pg_simplepay_price', array('include_inactive' => TRUE))) {
+    $field = array(
+      'field_name' => 'pg_simplepay_price',
+      'type' => 'number_decimal',
+      'settings' => array(
+        'precision' => 10,
+        'scale' => 2,
+        'decimal_separator' => '.',
       ),
-    'primary key' => array('vid'),
-  );
+    );
+    field_create_field($field);
+  }
+
+  // Create the instance if needed.
+  if (!field_read_instance('pg_simplepay_price', 'pg_simplepay_price', 'pg_simplepay_price', array('include_inactive' => TRUE))) {
+    field_attach_create_bundle('pg_simplepay_price', 'pg_simplepay_price');
+    // Attaches the price field by default.
+    $instance = array(
+      'field_name' => 'pg_simplepay_price',
+      'label' => 'Price',
+      'entity_type' => 'node',
+      'bundle' => 'pg_simplepay',
+      'required' => TRUE,
+      'widget' => array(
+        'type' => 'number',
+      ),
+      'display' => array(
+        'default' => array(
+          'type' => 'number_decimal',
+        ),
+      ),
+    );
+    field_create_instance($instance);
+  }
+  if (!field_read_field('pg_simplepay_free', array('include_inactive' => TRUE))) {
+    $field = array(
+      'field_name' => 'pg_simplepay_free',
+      'type' => 'list_boolean',
+      'cardinality' => 1,
+      'settings' => array(
+        'allowed_values' => array(1 => t('Free access'), 0 => t('Paid access')),
+      ),
+    );
+    field_create_field($field);
+  }
+
+  // Create the instance if needed.
+  if (!field_read_instance('pg_simplepay_free', 'pg_simplepay_free', 'pg_simplepay_free', array('include_inactive' => TRUE))) {
+    field_attach_create_bundle('pg_simplepay_free', 'pg_simplepay_free');
+    // Attaches the price field by default.
+    $instance = array(
+      'field_name' => 'pg_simplepay_free',
+      'label' => 'Free access',
+      'entity_type' => 'node',
+      'bundle' => 'pg_simplepay',
+      'widget' => array(
+        'type' => 'options_onoff',
+      ),
+      'display' => array(
+        'default' => array(
+          'type' => 'hidden',
+        ),
+      ),
+    );
+    field_create_instance($instance);
+  }  
+}
+
+/**
+ * Implements hook_uninstall.
+ */
+function pg_simplepay_uninstall() {
+  field_delete_field('pg_simplepay_price');
+  field_delete_field('pg_simplepay_free');  
+  node_type_delete('pg_simplepay');
+}
+/**
+ * Implements hook_schema.
+ */
+function pg_simplepay_schema() {
   $schema['pg_simplepay_payment'] = array(
-    'description' => t('Simplepay node price information.'),
+    'description' => 'Simplepay node price information.',
     'fields' => array(
       'nid'     => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
       'uid'     => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
