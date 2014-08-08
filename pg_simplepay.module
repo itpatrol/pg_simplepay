@@ -138,7 +138,17 @@ function pg_simplepay_menu() {
   return $items;
 }
 
-
+/*
+ * Implements hook_pgapi_payment_details
+ */
+function pg_simplepay_pgapi_payment_details($transaction){
+  $node = node_load($transaction->extra['nid']);
+  $uri = entity_uri('node', $node);
+  return array(
+    t('Link') => l($node->title,$uri['path'], $uri['options']),
+  );
+}
+ 
 /*
  * Implements hook_pgapi_transaction
  */
