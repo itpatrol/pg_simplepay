@@ -1,6 +1,12 @@
 <?php
+
 /**
- * Implements hook_install.
+ * @file
+ * Installation file for module "Simple pay".
+ */
+
+/**
+ * Implements hook_install().
  */
 function pg_simplepay_install() {
 
@@ -111,10 +117,30 @@ function pg_simplepay_schema() {
   $schema['pg_simplepay_payment'] = array(
     'description' => 'Simplepay node price information.',
     'fields' => array(
-      'nid'     => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-      'uid'     => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-      'session' => array('type' => 'varchar', 'length' => 32, 'not null' => TRUE, 'default' => ''),
-      'txnid'   => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'session' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'txnid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
       'created' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
     ),
     'primary key' => array('nid'),

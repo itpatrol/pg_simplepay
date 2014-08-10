@@ -97,6 +97,7 @@ function pg_simplepay_field_formatter_view($entity_type, $entity, $field, $insta
       $data = $function($entity_type, $entity, $field, $instance, $langcode, $s_items, $s_display);
       $element[$delta] = $data[0];
     }
+
   }
 
   return $element;
@@ -125,7 +126,6 @@ function pg_simplepay_node_view($node, $view_mode = 'full') {
 /**
  * Implements hook_menu()
  */
-
 function pg_simplepay_menu() {
   $items['simplepay/%node'] = array(
       'title'            => 'Simple Pay',
@@ -156,21 +156,23 @@ function pg_simplepay_pgapi_payment_details($transaction){
 function pg_simplepay_pgapi_transaction($op,$t){
   switch($op){
     case PG_COMPLETED:
-        $simple_access['nid']     = $t->extra['nid'];
-        $simple_access['uid']     = $t->uid;
-        $simple_access['txnid']   = $t->txnid;
-        $simple_access['created'] = time();
-        if($t->uid == 0 ){
-          $simple_access['session'] = $t->extra['session'];
-        }
-        drupal_write_record('pg_simplepay_payment', $simple_access);
-        $t->workflow = pgapi_get_workflow_id('completed');
+      $simple_access['nid']     = $t->extra['nid'];
+      $simple_access['uid']     = $t->uid;
+      $simple_access['txnid']   = $t->txnid;
+      $simple_access['created'] = time();
+      if($t->uid == 0 ){
+        $simple_access['session'] = $t->extra['session'];
+      }
+      drupal_write_record('pg_simplepay_payment', $simple_access);
+      $t->workflow = pgapi_get_workflow_id('completed');
       break;
+
     case PG_DENIED:
-        $t->workflow = pgapi_get_workflow_id('security violation');
+      $t->workflow = pgapi_get_workflow_id('security violation');
       break;
+
     case PG_FAILED:
-        $t->workflow = pgapi_get_workflow_id('canceled');
+      $t->workflow = pgapi_get_workflow_id('canceled');
       break;
   }
 }
@@ -195,7 +197,7 @@ function pg_simplepay_prepay ($node){
     'session' => $session_value,
   );
   pgapi_transaction_save($transaction);
-  $payment_url=  url('payment/'. $transaction->txnid, array('absolute' => TRUE));
+  $payment_url = url('payment/'. $transaction->txnid, array('absolute' => TRUE));
   drupal_goto($payment_url);
   return '';
 }
@@ -203,15 +205,15 @@ function pg_simplepay_prepay ($node){
 /*
  * Is Paid access by user
  */
- 
 function pg_simplepay_is_paid($node, $account=null){
   global $user;
-  if (!$account){
+
+  if (!$account) {
     $account = $user;
   }
   
   $ret = FALSE;
-  if($account->uid == 0){
+  if ($account->uid == 0){
     $session_value = $_COOKIE[session_name()];
 	  $pr = db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = :nid AND session = :session AND uid = :uid", array( ':nid' => $node->nid, ':session' => $session_value, ':uid' => $account->uid))->fetchObject();
 	  if(!empty($pr)){
