@@ -79,11 +79,21 @@ function pg_simplepay_form_alter(&$form, $form_state, $form_id) {
 function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch ($op) {
     case 'load':
-      $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' and vid= '%d'", $node->nid, $node->vid));
+      $pr = db_select('pg_simplepay_payment', 'psp')
+        ->fields('psp')
+        ->condition('nid', $node->nid)
+        ->condition('vid', $node->vid)
+        ->execute()
+        ->fetch();
       return array('pg_simplepay_price' => $pr->price ? $pr->price : 0);
 
     case 'update':
-      $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'", $node->nid, $node->vid));
+      $pr = db_select('pg_simplepay_payment', 'psp')
+        ->fields('psp')
+        ->condition('nid', $node->nid)
+        ->condition('vid', $node->vid)
+        ->execute()
+        ->fetch();
       if (isset($pr->nid)) {
         $pr->price = $node->pg_simplepay_price;
         drupal_write_record('pg_simplepay_price', $pr, array('nid', 'vid'));
@@ -105,7 +115,7 @@ function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       break;
 
     case 'delete':
-      db_query("DELETE FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'}", $node->nid, $node->vid);
+      db_query('DELETE FROM {pg_simplepay_price} WHERE nid = %d AND vid = %d', $node->nid, $node->vid);
       break;
 
     case 'view':
@@ -292,14 +302,25 @@ function pg_simplepay_is_paid($nid, $account = NULL) {
   $ret = FALSE;
   if ($account->uid == 0) {
     $ses = $_COOKIE[session_name()];
-    $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = '%d' AND session = '%s' AND uid = '%d'", $nid, $ses, $account->uid));
+    $pr = db_select('pg_simplepay_payment', 'psp')
+      ->fields('psp')
+      ->condition('nid', $nid)
+      ->condition('session', $ses)
+      ->condition('uid', $account->uid)
+      ->execute()
+      ->fetch();
     if (!empty($pr)) {
       $ret = TRUE;
     };
 
   }
   else {
-    $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = '%d' AND uid = '%d'", $nid, $account->uid));
+    $pr = db_select('pg_simplepay_payment', 'psp')
+      ->fields('psp')
+      ->condition('nid', $nid)
+      ->condition('uid', $account->uid)
+      ->execute()
+      ->fetch();
     if (!empty($pr)) {
       $ret = TRUE;
     };
