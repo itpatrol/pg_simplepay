@@ -91,20 +91,6 @@ function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
         drupal_write_record('pg_simplepay_price', $pr);
       };
       break;
-
-    case 'view':
-      if (!user_access('free access') && variable_get('pg_simplepay_allowed_' . $node->type, 0) && $node->pg_simplepay_price > 0) {
-        if ($a4 == 1) {
-          if (!pg_simplepay_is_paid($node->nid)) {
-            $node2 = node_build_content(node_load($node->nid), 'TRUE');
-            $node->content['body']['#value'] = $node2->teaser;
-            if (!empty($node->content['files']['#value'])) {
-              $node->content['files']['#value'] = t('Please buy access to see attached files');
-            }
-          }
-        }
-      }
-      break;
   }
 }
 
@@ -145,6 +131,24 @@ function pg_simplepay_node_delete($node) {
     ->condition('nid', $node->nid)
     ->condition('vid', $node->vid)
     ->execute();
+}
+
+/**
+ * Implements hook_node_view().
+ */
+function pg_simplepay_node_view($node, $view_mode) {
+  if (!user_access('free access') && variable_get('pg_simplepay_allowed_' . $node->type, 0) && $node->pg_simplepay_price > 0) {
+    if ($view_mode == 'teaser') {
+      if (!pg_simplepay_is_paid($node->nid)) {
+        $node2 = node_build_content($node, TRUE);
+        $node->content['body']['#value'] = $node2->teaser;
+        
+        if (!empty($node->content['files']['#value'])) {
+          $node->content['files']['#value'] = t('Please buy access to see attached files.');
+        }
+      }
+    }
+  }
 }
 
 /**
