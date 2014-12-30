@@ -92,10 +92,6 @@ function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       };
       break;
 
-    case 'delete':
-      db_query("DELETE FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'}", $node->nid, $node->vid);
-      break;
-
     case 'view':
       if (!user_access('free access') && variable_get('pg_simplepay_allowed_' . $node->type, 0) && $node->pg_simplepay_price > 0) {
         if ($a4 == 1) {
@@ -138,6 +134,16 @@ function pg_simplepay_node_insert($node) {
       'nid' => $node->nid,
       'vid' => $node->vid,
     ))
+    ->execute();
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function pg_simplepay_node_delete($node) {
+  db_delete('pg_simplepay_price')
+    ->condition('nid', $node->nid)
+    ->condition('vid', $node->vid)
     ->execute();
 }
 
