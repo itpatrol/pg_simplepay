@@ -92,14 +92,6 @@ function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       };
       break;
 
-    case 'insert':
-      $pr = (object) (NULL);
-      $pr->price = $node->pg_simplepay_price;
-      $pr->nid = $node->nid;
-      $pr->vid = $node->vid;
-      drupal_write_record('pg_simplepay_price', $pr);
-      break;
-
     case 'delete':
       db_query("DELETE FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'}", $node->nid, $node->vid);
       break;
@@ -134,6 +126,19 @@ function pg_simplepay_node_load($nodes, $types) {
 
     $node->price = $simplepay_price ? $simplepay_price->price : 0;
   }
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function pg_simplepay_node_insert($node) {
+  db_insert('pg_simplepay_price')
+    ->fields(array(
+      'price' => $node->pg_simplepay_price,
+      'nid' => $node->nid,
+      'vid' => $node->vid,
+    ))
+    ->execute();
 }
 
 /**
