@@ -72,28 +72,6 @@ function pg_simplepay_form_alter(&$form, $form_state, $form_id) {
   }
 }
 
-
-/**
- * Implements hook_nodeapi().
- */
-function pg_simplepay_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
-  switch ($op) {
-    case 'update':
-      $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_price} WHERE nid = '%d' AND vid= '%d'", $node->nid, $node->vid));
-      if (isset($pr->nid)) {
-        $pr->price = $node->pg_simplepay_price;
-        drupal_write_record('pg_simplepay_price', $pr, array('nid', 'vid'));
-      }
-      else {
-        $pr->price = $node->pg_simplepay_price;
-        $pr->nid = $node->nid;
-        $pr->vid = $node->vid;
-        drupal_write_record('pg_simplepay_price', $pr);
-      };
-      break;
-  }
-}
-
 /**
  * Implements hook_node_load().
  */
@@ -131,6 +109,37 @@ function pg_simplepay_node_delete($node) {
     ->condition('nid', $node->nid)
     ->condition('vid', $node->vid)
     ->execute();
+}
+
+/**
+ * Implements hook_node_update().
+ */
+function pg_simplepay_node_update($node) {
+  $simplepay_price = db_select('pg_simplepay_price', 'p')
+    ->fields('p')
+    ->condition('nid', $node->nid)
+    ->condition('vid', $node->vid)
+    ->execute()
+    ->fetchObject();
+
+  if ($simplepay_price) {
+    db_update('pg_simplepay_price')
+      ->fields(array(
+        'price' => $node->pg_simplepay_price,
+      ))
+      ->condition('nid', $node->nid)
+      ->condition('vid', $node->vid)
+      ->execute();
+  }
+  else {
+    db_insert('pg_simplepay_price')
+      ->fields(array(
+        'price' => $node->pg_simplepay_price,
+        'nid' => $node->nid,
+        'vid' => $node->vid,
+      ))
+      ->execute();
+  }
 }
 
 /**
