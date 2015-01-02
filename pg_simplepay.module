@@ -328,14 +328,25 @@ function pg_simplepay_is_paid($nid, $account = NULL) {
   $ret = FALSE;
   if ($account->uid == 0) {
     $ses = $_COOKIE[session_name()];
-    $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = '%d' AND session = '%s' AND uid = '%d'", $nid, $ses, $account->uid));
+    $pr = db_select('pg_simplepay_payment', 'psp')
+      ->fields('psp')
+      ->condition('nid', $nid)
+      ->condition('session', $ses)
+      ->condition('uid', $account->uid)
+      ->execute()
+      ->fetch();
     if (!empty($pr)) {
       $ret = TRUE;
     };
 
   }
   else {
-    $pr = db_fetch_object(db_query("SELECT * FROM {pg_simplepay_payment} WHERE nid = '%d' AND uid = '%d'", $nid, $account->uid));
+    $pr = db_select('pg_simplepay_payment', 'psp')
+      ->fields('psp')
+      ->condition('nid', $nid)
+      ->condition('uid', $account->uid)
+      ->execute()
+      ->fetch();
     if (!empty($pr)) {
       $ret = TRUE;
     };
