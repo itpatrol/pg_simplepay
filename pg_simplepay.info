@@ -2,4 +2,4 @@ name = Simple pay
 description = Create simple payment peer node.
 dependencies[] = pgapi
 package = "Commerce"
-core = 6.x
+core = 7.x
