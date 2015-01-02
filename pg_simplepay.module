@@ -18,6 +18,7 @@ function pg_simplepay_init() {
  * Implements hook_menu().
  */
 function pg_simplepay_menu() {
+  $items = array();
   $items['admin/pgdata/simplepay'] = array(
     'title' => 'Simple Pay Settings',
     'description' => 'Configure default settings for Simple Pay.',
