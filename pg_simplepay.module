@@ -15,6 +15,49 @@ function pg_simplepay_init() {
 }
 
 /**
+ * Implements hook_menu().
+ */
+function pg_simplepay_menu() {
+  $items['admin/pgdata/simplepay'] = array(
+    'title' => 'Simple Pay Settings',
+    'description' => 'Configure default settings for Simple Pay.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('pg_simplepay_common'),
+    'access callback' => 'user_access',
+    'access arguments' => array('pg_simplepay administer pgapi'),
+    'file' => 'pg_simplepay.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['simplepay/%node'] = array(
+    'title' => 'Simple Pay',
+    'page callback' => 'pg_simplepay_prepay',
+    'page arguments' => array(1),
+    'access callback' => 'user_access',
+    'access arguments' => array('pg_simplepay buy access'),
+    'file' => 'pg_simplepay.admin.inc',
+  );
+
+  $items['simplepay/complete/%txnid'] = array(
+    'title' => 'Payment completed',
+    'page callback' => 'pg_simplepay_complete',
+    'page arguments' => array(2),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['simplepay/fail/%txnid'] = array(
+    'title' => 'Payment failed',
+    'page callback' => 'pg_simplepay_fail',
+    'page arguments' => array(2),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
  * Implements hook_permission().
  */
 function pg_simplepay_permission() {
@@ -30,6 +73,20 @@ function pg_simplepay_permission() {
     'pg_simplepay buy access' => array(
       'title' => t('Simple Pay'),
       'description' => t('Access to page simplepay.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function pg_simplepay_theme() {
+  return array(
+    'pg_simplepay_complete' => array(
+      'arguments' => array('t' => array()),
+    ),
+    'pg_simplepay_fail' => array(
+      'arguments' => array('t' => array()),
     ),
   );
 }
@@ -160,63 +217,6 @@ function pg_simplepay_node_view($node, $view_mode) {
       }
     }
   }
-}
-
-/**
- * Implements hook_theme().
- */
-function pg_simplepay_theme() {
-  return array(
-    'pg_simplepay_complete' => array(
-      'arguments' => array('t' => array()),
-    ),
-    'pg_simplepay_fail' => array(
-      'arguments' => array('t' => array()),
-    ),
-  );
-}
-
-/**
- * Implements hook_menu().
- */
-function pg_simplepay_menu() {
-  $items['admin/pgdata/simplepay'] = array(
-    'title' => 'Simple Pay Settings',
-    'description' => 'Configure default settings for Simple Pay.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('pg_simplepay_common'),
-    'access callback' => 'user_access',
-    'access arguments' => array('pg_simplepay administer pgapi'),
-    'file' => 'pg_simplepay.admin.inc',
-    'type' => MENU_NORMAL_ITEM,
-  );
-
-  $items['simplepay/%node'] = array(
-    'title' => 'Simple Pay',
-    'page callback' => 'pg_simplepay_prepay',
-    'page arguments' => array(1),
-    'access callback' => 'user_access',
-    'access arguments' => array('pg_simplepay buy access'),
-    'file' => 'pg_simplepay.admin.inc',
-  );
-
-  $items['simplepay/complete/%txnid'] = array(
-    'title' => 'Payment completed',
-    'page callback' => 'pg_simplepay_complete',
-    'page arguments' => array(2),
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
-  );
-
-  $items['simplepay/fail/%txnid'] = array(
-    'title' => 'Payment failed',
-    'page callback' => 'pg_simplepay_fail',
-    'page arguments' => array(2),
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
-  );
-
-  return $items;
 }
 
 /**
