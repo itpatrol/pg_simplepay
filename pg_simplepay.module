@@ -35,23 +35,6 @@ function pg_simplepay_permission() {
 }
 
 /**
- * Implements hook_link().
- */
-function pg_simplepay_link($type, $object, $teaser = FALSE) {
-  $links = array();
-
-  if (!user_access('pg_simplepay free access') && variable_get('pg_simplepay_allowed_' . $object->type, 0) && $object->pg_simplepay_price > 0 && !pg_simplepay_is_paid($object->nid)) {
-    $links['sample_link'] = array(
-      'title' => t('Buy access'),
-      'href' => 'simplepay/' . $object->nid,
-      'attributes' => array('title' => t('Buy access')),
-    );
-  }
-
-  return $links;
-}
-
-/**
  * Implements hook_form_alter().
  */
 function pg_simplepay_form_alter(&$form, $form_state, $form_id) {
@@ -170,6 +153,10 @@ function pg_simplepay_node_view($node, $view_mode) {
         if (!empty($node->content['files']['#value'])) {
           $node->content['files']['#value'] = t('Please buy access to see attached files.');
         }
+
+        $node->content['pg_simplepay_link'] = array(
+          '#markup' => l(t('Buy access'), 'simplepay/' . $object->nid, array('title' => t('Buy access'))),
+        );
       }
     }
   }
